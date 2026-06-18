@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pokémon Card DB リアルタイム検索</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #0b1117;
+      color: #fff;
+      font-family: Arial, "Meiryo", sans-serif;
+    }
+
+    h2 {
+      margin-bottom: 16px;
+      font-size: 20px;
+    }
+
+    .panel {
+      background: #111821;
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    input, select, button {
+      background: #0f1722;
+      color: #fff;
+      border: 1px solid #2b3a4d;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+    #searchInput {
+      flex: 1;
+      min-width: 320px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #17263a;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #9fb4cc;
+      margin-bottom: 28px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #263445;
+      padding: 10px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: #b9d7ff;
+      font-weight: bold;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    td {
+      white-space: nowrap;
+    }
+
+    .title-cell {
+      min-width: 320px;
+      white-space: normal;
+    }
+
+    .num-input {
+      width: 74px;
+      text-align: right;
+    }
+
+    .saved {
+      color: #8fffa0;
+      font-size: 12px;
+    }
+
+    .saving {
+      color: #ffd36a;
+      font-size: 12px;
+    }
+
+    .error {
+      color: #ff7b7b;
+      font-size: 12px;
+    }
+
+    .updated-at {
+      color: #d8e7ff;
+      font-size: 12px;
+    }
+
+    .filter-th {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .filter-th.active {
+      color: #7cff9b;
+    }
+
+    .filter-box {
+      position: absolute;
+      top: 34px;
+      left: 0;
+      width: 360px;
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: #0f1722;
+      border: 1px solid #2b3a4d;
+      border-radius: 10px;
+      padding: 10px;
+      z-index: 999;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+      display: none;
+      color: #fff;
+    }
+
+    #expansionFilterBox {
+      width: 420px;
+    }
+
+    .filter-search {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 8px;
+      background: #09111a;
+      border: 1px solid #3a4b63;
+    }
+
+    .filter-box.show {
+      display: block;
+    }
+
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .filter-actions button {
+      font-size: 12px;
+      padding: 5px 8px;
+    }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 2px;
+      font-size: 13px;
+      color: #fff;
+    }
+
+    .filter-option input {
+      width: auto;
+    }
+
+    .pager {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      margin-top: 20px;
+      font-size: 13px;
+      color: #cfe3ff;
+      flex-wrap: wrap;
+    }
+
+    .pager button {
+      min-width: 38px;
+      padding: 7px 10px;
+    }
+
+    .pager .move-btn {
+      min-width: 76px;
+    }
+
+    .pager .page-btn.active {
+      background: #2f7d4f;
+      border-color: #7cff9b;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .pager .page-dots {
+      padding: 0 4px;
+      color: #9fb4cc;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Pokémon Card DB リアルタイム検索</h2>
+
+  <div class="panel">
+    <div class="controls">
+      <input
+        id="searchInput"
+        type="text"
+        placeholder="商品名 / カナ / Poke_No / Expansion を入力..."
+      />
+
+      <select id="sortSelect">
+        <option value="updated_desc">更新日時 新しい順</option>
+        <option value="poke_no_asc">Poke_No 昇順</option>
+        <option value="id_asc">ID 昇順</option>
+      </select>
+
+      <select id="pageSizeSelect">
+        <option value="20">20件</option>
+        <option value="50">50件</option>
+        <option value="100" selected>100件</option>
+      </select>
+
+      <button onclick="clearSearch()">クリア</button>
+      <button onclick="clearAllFilters()">フィルター解除</button>
+    </div>
+
+    <div class="note">
+      ※ Ver / Expansion の見出しをクリックすると複数選択フィルターできます。状態A〜Dはクリックで全選択、自動保存。
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Poke_No</th>
+          <th>Title</th>
+
+          <th class="filter-th" id="verHeader" onclick="toggleFilterBox(event, 'ver')">
+            Ver ▼
+            <div class="filter-box" id="verFilterBox" onclick="event.stopPropagation()"></div>
+          </th>
+
+          <th class="filter-th" id="expansionHeader" onclick="toggleFilterBox(event, 'expansion')">
+            Expansion ▼
+            <div class="filter-box" id="expansionFilterBox" onclick="event.stopPropagation()"></div>
+          </th>
+
+          <th>状態A</th>
+          <th>状態B</th>
+          <th>状態C</th>
+          <th>状態D</th>
+          <th>保存状態</th>
+          <th>更新日時</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <div class="pager">
+      <button id="prevBtn" class="move-btn" onclick="prevPage()">前ページ</button>
+      <span id="pageNumbers"></span>
+      <button id="nextBtn" class="move-btn" onclick="nextPage()">次ページ</button>
+      <span id="pageInfo">1ページ目</span>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://nfptylpwvhzorstsjrck.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_UokmnaCrSi9SvKZpRDyq4A_3E7X-lga";
+
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const tableName = "poke_cards";
+
+    const searchInput = document.getElementById("searchInput");
+    const sortSelect = document.getElementById("sortSelect");
+    const pageSizeSelect = document.getElementById("pageSizeSelect");
+    const tableBody = document.getElementById("tableBody");
+
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const pageInfo = document.getElementById("pageInfo");
+    const pageNumbers = document.getElementById("pageNumbers");
+
+    let searchTimer = null;
+    const saveTimers = {};
+
+    let verOptions = [];
+    let expansionOptions = [];
+
+    let selectedVers = new Set();
+    let selectedExpansions = new Set();
+
+    let currentPage = 1;
+    let totalCount = 0;
+
+    async function loadFilterOptions() {
+      let allData = [];
+      let from = 0;
+      const chunkSize = 1000;
+
+      while (true) {
+        const { data, error } = await client
+          .from(tableName)
+          .select("ver, expansion")
+          .range(from, from + chunkSize - 1);
+
+        if (error) {
+          console.error(error);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          break;
+        }
+
+        allData = allData.concat(data);
+
+        if (data.length < chunkSize) {
+          break;
+        }
+
+        from += chunkSize;
+      }
+
+      verOptions = [...new Set(
+        allData.map(x => String(x.ver ?? "").trim()).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, "ja"));
+
+      expansionOptions = [...new Set(
+        allData.map(x => String(x.expansion ?? "").trim()).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, "ja"));
+
+      renderFilterBox("ver");
+      renderFilterBox("expansion");
+    }
+
+    async function loadData() {
+      const keyword = searchInput.value.trim();
+      const sortValue = sortSelect.value;
+      const pageSize = Number(pageSizeSelect.value);
+
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = client
+        .from(tableName)
+        .select("*", { count: "exact" })
+        .range(from, to);
+
+      if (keyword) {
+        query = query.or(
+          [
+            `title.ilike.%${keyword}%`,
+            `ver.ilike.%${keyword}%`,
+            `expansion.ilike.%${keyword}%`,
+            `poke_no.eq.${Number(keyword) || -1}`,
+            `id.eq.${Number(keyword) || -1}`
+          ].join(",")
+        );
+      }
+
+      if (selectedVers.size > 0) {
+        query = query.in("ver", Array.from(selectedVers));
+      }
+
+      if (selectedExpansions.size > 0) {
+        query = query.in("expansion", Array.from(selectedExpansions));
+      }
+
+      if (sortValue === "updated_desc") {
+        query = query.order("updated_at", { ascending: false });
+      } else if (sortValue === "poke_no_asc") {
+        query = query.order("poke_no", { ascending: true });
+      } else if (sortValue === "id_asc") {
+        query = query.order("id", { ascending: true });
+      }
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error(error);
+        alert("データ取得エラー");
+        return;
+      }
+
+      totalCount = count || 0;
+
+      renderTable(data);
+      updateFilterHeaderStyle();
+      updatePager();
+    }
+
+    function renderTable(cards) {
+      tableBody.innerHTML = "";
+
+      if (!cards || cards.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="11" style="text-align:center; color:#9fb4cc; padding:30px;">
+              表示できるデータがありません
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      cards.forEach(card => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td>${card.id ?? ""}</td>
+          <td>${card.poke_no ?? ""}</td>
+          <td class="title-cell">${escapeHtml(card.title ?? "")}</td>
+          <td>${escapeHtml(card.ver ?? "")}</td>
+          <td>${escapeHtml(card.expansion ?? "")}</td>
+
+          <td>
+            <input class="num-input" type="number"
+              value="${card.status_a ?? 0}"
+              onfocus="this.select()"
+              onclick="this.select()"
+              oninput="autoSave(${card.id}, 'status_a', this.value)">
+          </td>
+
+          <td>
+            <input class="num-input" type="number"
+              value="${card.status_b ?? 0}"
+              onfocus="this.select()"
+              onclick="this.select()"
+              oninput="autoSave(${card.id}, 'status_b', this.value)">
+          </td>
+
+          <td>
+            <input class="num-input" type="number"
+              value="${card.status_c ?? 0}"
+              onfocus="this.select()"
+              onclick="this.select()"
+              oninput="autoSave(${card.id}, 'status_c', this.value)">
+          </td>
+
+          <td>
+            <input class="num-input" type="number"
+              value="${card.status_d ?? 0}"
+              onfocus="this.select()"
+              onclick="this.select()"
+              oninput="autoSave(${card.id}, 'status_d', this.value)">
+          </td>
+
+          <td id="save-status-${card.id}" class="saved">保存済み</td>
+          <td id="updated-at-${card.id}" class="updated-at">
+            ${formatDate(card.updated_at)}
+          </td>
+        `;
+
+        tableBody.appendChild(tr);
+      });
+    }
+
+    function updatePager() {
+      const pageSize = Number(pageSizeSelect.value);
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+      if (currentPage > totalPages) {
+        currentPage = totalPages;
+        loadData();
+        return;
+      }
+
+      pageInfo.textContent = `${currentPage} / ${totalPages}ページ（全${totalCount}件）`;
+
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+
+      renderPageNumbers(totalPages);
+    }
+
+    function renderPageNumbers(totalPages) {
+      pageNumbers.innerHTML = "";
+
+      const pages = getVisiblePages(currentPage, totalPages);
+
+      pages.forEach(p => {
+        if (p === "...") {
+          const span = document.createElement("span");
+          span.className = "page-dots";
+          span.textContent = "...";
+          pageNumbers.appendChild(span);
+          return;
+        }
+
+        const btn = document.createElement("button");
+        btn.className = "page-btn";
+        btn.textContent = p;
+
+        if (p === currentPage) {
+          btn.classList.add("active");
+        }
+
+        btn.onclick = () => {
+          currentPage = p;
+          loadData();
+        };
+
+        pageNumbers.appendChild(btn);
+      });
+    }
+
+    function getVisiblePages(current, total) {
+      if (total <= 9) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+      }
+
+      const pages = [1];
+
+      const start = Math.max(2, current - 2);
+      const end = Math.min(total - 1, current + 2);
+
+      if (start > 2) {
+        pages.push("...");
+      }
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (end < total - 1) {
+        pages.push("...");
+      }
+
+      pages.push(total);
+
+      return pages;
+    }
+
+    function nextPage() {
+      const pageSize = Number(pageSizeSelect.value);
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+      if (currentPage < totalPages) {
+        currentPage++;
+        loadData();
+      }
+    }
+
+    function prevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        loadData();
+      }
+    }
+
+    function resetPageAndLoad() {
+      currentPage = 1;
+      loadData();
+    }
+
+    function renderFilterBox(type) {
+      const box = document.getElementById(type === "ver" ? "verFilterBox" : "expansionFilterBox");
+      const options = type === "ver" ? verOptions : expansionOptions;
+      const selectedSet = type === "ver" ? selectedVers : selectedExpansions;
+
+      box.innerHTML = `
+        <div class="filter-actions">
+          <button onclick="selectAllFilter('${type}')">全選択</button>
+          <button onclick="clearFilter('${type}')">解除</button>
+        </div>
+
+        <input
+          class="filter-search"
+          type="text"
+          placeholder="検索..."
+          value=""
+          oninput="filterFilterBoxOptions('${type}', this.value)"
+          onclick="event.stopPropagation()"
+        >
+
+        <div class="filter-options" id="${type}FilterOptions">
+          ${options.map(value => `
+            <label class="filter-option" data-filter-text="${escapeHtml(value).toLowerCase()}">
+              <input
+                type="checkbox"
+                ${selectedSet.has(value) ? "checked" : ""}
+                onchange='toggleFilterValue("${type}", ${JSON.stringify(value)}, this.checked)'
+              >
+              <span>${escapeHtml(value)}</span>
+            </label>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function filterFilterBoxOptions(type, keyword) {
+      const wrapper = document.getElementById(`${type}FilterOptions`);
+      if (!wrapper) return;
+
+      const normalizedKeyword = String(keyword || "").toLowerCase();
+
+      wrapper.querySelectorAll(".filter-option").forEach(label => {
+        const text = label.dataset.filterText || "";
+        label.style.display = text.includes(normalizedKeyword) ? "flex" : "none";
+      });
+    }
+
+    function toggleFilterBox(event, type) {
+      event.stopPropagation();
+
+      const verBox = document.getElementById("verFilterBox");
+      const expansionBox = document.getElementById("expansionFilterBox");
+
+      if (type === "ver") {
+        expansionBox.classList.remove("show");
+        verBox.classList.toggle("show");
+      } else {
+        verBox.classList.remove("show");
+        expansionBox.classList.toggle("show");
+      }
+    }
+
+    function toggleFilterValue(type, value, checked) {
+      const selectedSet = type === "ver" ? selectedVers : selectedExpansions;
+
+      if (checked) {
+        selectedSet.add(value);
+      } else {
+        selectedSet.delete(value);
+      }
+
+      renderFilterBox(type);
+      resetPageAndLoad();
+    }
+
+    function selectAllFilter(type) {
+      if (type === "ver") {
+        selectedVers = new Set(verOptions);
+      } else {
+        selectedExpansions = new Set(expansionOptions);
+      }
+
+      renderFilterBox(type);
+      resetPageAndLoad();
+    }
+
+    function clearFilter(type) {
+      if (type === "ver") {
+        selectedVers.clear();
+      } else {
+        selectedExpansions.clear();
+      }
+
+      renderFilterBox(type);
+      resetPageAndLoad();
+    }
+
+    function clearAllFilters() {
+      selectedVers.clear();
+      selectedExpansions.clear();
+      renderFilterBox("ver");
+      renderFilterBox("expansion");
+      resetPageAndLoad();
+    }
+
+    function updateFilterHeaderStyle() {
+      const verHeader = document.getElementById("verHeader");
+      const expansionHeader = document.getElementById("expansionHeader");
+
+      verHeader.classList.toggle("active", selectedVers.size > 0);
+      expansionHeader.classList.toggle("active", selectedExpansions.size > 0);
+    }
+
+    function autoSave(id, column, value) {
+      const statusEl = document.getElementById(`save-status-${id}`);
+
+      statusEl.textContent = "入力中...";
+      statusEl.className = "saving";
+
+      const key = `${id}-${column}`;
+      clearTimeout(saveTimers[key]);
+
+      saveTimers[key] = setTimeout(async () => {
+        const numValue = Number(value) || 0;
+
+        statusEl.textContent = "保存中...";
+        statusEl.className = "saving";
+
+        const { data, error } = await client
+          .from(tableName)
+          .update({ [column]: numValue })
+          .eq("id", id)
+          .select("updated_at")
+          .single();
+
+        if (error) {
+          console.error(error);
+          statusEl.textContent = "保存失敗";
+          statusEl.className = "error";
+          return;
+        }
+
+        statusEl.textContent = "保存済み";
+        statusEl.className = "saved";
+
+        const updatedAtEl = document.getElementById(`updated-at-${id}`);
+        if (updatedAtEl && data?.updated_at) {
+          updatedAtEl.textContent = formatDate(data.updated_at);
+        }
+      }, 500);
+    }
+
+    function clearSearch() {
+      searchInput.value = "";
+      resetPageAndLoad();
+    }
+
+    function formatDate(dateText) {
+      if (!dateText) return "";
+
+      return new Date(dateText).toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeJs(text) {
+      return String(text)
+        .replaceAll("\\", "\\\\")
+        .replaceAll("'", "\\'");
+    }
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(resetPageAndLoad, 250);
+    });
+
+    sortSelect.addEventListener("change", resetPageAndLoad);
+    pageSizeSelect.addEventListener("change", resetPageAndLoad);
+
+    document.addEventListener("click", () => {
+      document.getElementById("verFilterBox").classList.remove("show");
+      document.getElementById("expansionFilterBox").classList.remove("show");
+    });
+
+    async function init() {
+      await loadFilterOptions();
+      await loadData();
+    }
+
+    init();
+  </script>
+</body>
+</html>
