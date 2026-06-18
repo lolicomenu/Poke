@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pokemon Price Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg: #f6f6f6;
+      --header-bg: #111;
+      --header-text: #fff;
+      --panel-bg: #fff;
+      --card-bg: #fff;
+      --text: #111;
+      --subtext: #555;
+      --border: #ddd;
+      --image-bg: #fafafa;
+      --input-bg: #fff;
+      --button-bg: #fff;
+      --button-hover: #eee;
+      --active-bg: #111;
+      --active-text: #fff;
+    }
+
+    body.dark {
+      --bg: #0b1220;
+      --header-bg: #020617;
+      --header-text: #fff;
+      --panel-bg: #111827;
+      --card-bg: #111827;
+      --text: #e5e7eb;
+      --subtext: #94a3b8;
+      --border: #334155;
+      --image-bg: #020617;
+      --input-bg: #020617;
+      --button-bg: #1e293b;
+      --button-hover: #334155;
+      --active-bg: #2563eb;
+      --active-text: #fff;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Meiryo", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      padding: 14px 20px;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-size: 20px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #themeButton {
+      padding: 7px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--button-bg);
+      color: var(--text);
+      border-radius: 4px;
+    }
+
+    .controls {
+      padding: 14px 20px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .controls input,
+    .controls select {
+      padding: 8px 10px;
+      font-size: 15px;
+      height: 38px;
+      box-sizing: border-box;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .controls > input {
+      width: 380px;
+    }
+
+    .controls select {
+      min-width: 180px;
+      max-width: 280px;
+    }
+
+    .controls button {
+      padding: 8px 16px;
+      font-size: 15px;
+      height: 38px;
+      cursor: pointer;
+      background: var(--button-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .filter-wrap {
+      position: relative;
+    }
+
+    .filter-btn {
+      min-width: 180px;
+      text-align: left;
+    }
+
+    .dropdown {
+      display: none;
+      position: absolute;
+      top: 42px;
+      left: 0;
+      z-index: 100;
+      width: 420px;
+      max-width: 90vw;
+      max-height: 520px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      padding: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.25);
+      box-sizing: border-box;
+    }
+
+    .dropdown.open {
+      display: block;
+    }
+
+    .dropdown-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .dropdown-actions button {
+      height: 30px;
+      padding: 4px 10px;
+      font-size: 13px;
+    }
+
+    .dropdown-search {
+      width: 100% !important;
+      height: 38px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .check-list {
+      max-height: 380px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 6px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 2px;
+      font-size: 14px;
+      font-weight: bold;
+      white-space: normal;
+      cursor: pointer;
+      color: var(--text);
+      word-break: break-word;
+      line-height: 1.4;
+    }
+
+    .check-item input[type="checkbox"] {
+      width: 14px !important;
+      height: 14px !important;
+      min-width: 14px !important;
+      flex: 0 0 14px;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .check-item span {
+      display: block;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .status-bar {
+      padding: 8px 20px;
+      font-size: 13px;
+      color: var(--subtext);
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0;
+      padding: 20px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 18px;
+      min-height: 520px;
+      box-sizing: border-box;
+    }
+
+    .image-wrap {
+      width: 100%;
+      height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--image-bg);
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .card img {
+      max-width: 100%;
+      max-height: 250px;
+      object-fit: contain;
+    }
+
+    .no-image {
+      color: var(--subtext);
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .name {
+      font-size: 16px;
+      font-weight: bold;
+      line-height: 1.5;
+      word-break: break-word;
+      margin-bottom: 18px;
+      min-height: 48px;
+    }
+
+    .price-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: bold;
+    }
+
+    .price-row label {
+      width: 58px;
+    }
+
+    .price-row input {
+      flex: 1;
+      padding: 7px;
+      font-size: 15px;
+      text-align: right;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .yen {
+      width: 20px;
+    }
+
+    .saved {
+      font-size: 12px;
+      color: green;
+      margin-top: 8px;
+      height: 16px;
+    }
+
+    .updated-time {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--subtext);
+      text-align: right;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 20px;
+      background: var(--bg);
+    }
+
+    .pagination button {
+      min-width: 38px;
+      height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      background: var(--button-bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .pagination button:hover {
+      background: var(--button-hover);
+    }
+
+    .pagination button.active {
+      background: var(--active-bg);
+      color: var(--active-text);
+      border-color: var(--active-bg);
+      font-weight: bold;
+    }
+
+    .pagination button:disabled {
+      background: var(--button-hover);
+      color: var(--subtext);
+      cursor: not-allowed;
+    }
+
+    .page-info {
+      width: 100%;
+      text-align: center;
+      font-size: 13px;
+      color: var(--subtext);
+      margin-top: 8px;
+    }
+
+    @media (max-width: 1200px) {
+      .grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>Pokemon Price Editor</div>
+    <button id="themeButton">ダークモード</button>
+  </header>
+
+  <div class="controls">
+<input
+  id="searchInput"
+  type="text"
+  placeholder="Title / Ver / Expansion / ID リアルタイム検索"
+  onfocus="this.select()"
+  onclick="this.select()"
+>
+
+    <button id="resetButton">リセット</button>
+
+    <select id="sortSelect">
+      <option value="id.asc">ID 昇順</option>
+      <option value="id.desc">ID 降順</option>
+      <option value="title.asc">名前 昇順</option>
+      <option value="title.desc">名前 降順</option>
+    </select>
+
+    <div class="filter-wrap">
+      <button id="verButton" class="filter-btn">Ver：すべて ▼</button>
+      <div id="verDropdown" class="dropdown">
+        <div class="dropdown-actions">
+          <button onclick="selectAllFilter('ver')">全選択</button>
+          <button onclick="clearFilter('ver')">解除</button>
+        </div>
+        <input id="verSearch" class="dropdown-search" type="text" placeholder="検索...">
+        <div id="verList" class="check-list"></div>
+      </div>
+    </div>
+
+    <div class="filter-wrap">
+      <button id="expansionButton" class="filter-btn">Expansion：すべて ▼</button>
+      <div id="expansionDropdown" class="dropdown">
+        <div class="dropdown-actions">
+          <button onclick="selectAllFilter('expansion')">全選択</button>
+          <button onclick="clearFilter('expansion')">解除</button>
+        </div>
+        <input id="expansionSearch" class="dropdown-search" type="text" placeholder="検索...">
+        <div id="expansionList" class="check-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="statusBar" class="status-bar">読み込み中...</div>
+
+  <div id="grid" class="grid"></div>
+
+  <div id="pagination" class="pagination"></div>
+
+  <script>
+    const SUPABASE_URL = "https://nfptylpwvhzorstsjrck.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_UokmnaCrSi9SvKZpRDyq4A_3E7X-lga";
+
+    const TABLE_NAME = "poke_cards";
+    const BUCKET_NAME = "poke-card-images";
+
+    const PAGE_SIZE = 100;
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const grid = document.getElementById("grid");
+    const pagination = document.getElementById("pagination");
+    const statusBar = document.getElementById("statusBar");
+    const searchInput = document.getElementById("searchInput");
+    const resetButton = document.getElementById("resetButton");
+    const sortSelect = document.getElementById("sortSelect");
+
+    const themeButton = document.getElementById("themeButton");
+
+    const verButton = document.getElementById("verButton");
+    const expansionButton = document.getElementById("expansionButton");
+    const verDropdown = document.getElementById("verDropdown");
+    const expansionDropdown = document.getElementById("expansionDropdown");
+    const verSearch = document.getElementById("verSearch");
+    const expansionSearch = document.getElementById("expansionSearch");
+    const verList = document.getElementById("verList");
+    const expansionList = document.getElementById("expansionList");
+
+    let currentPage = 1;
+    let totalCount = 0;
+
+    let verOptions = [];
+    let expansionOptions = [];
+
+    let selectedVer = new Set();
+    let selectedExpansion = new Set();
+
+    let searchTimer = null;
+
+    themeButton.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      const isDark = document.body.classList.contains("dark");
+      themeButton.textContent = isDark ? "ライトモード" : "ダークモード";
+      localStorage.setItem("poke_cards_theme", isDark ? "dark" : "light");
+    });
+
+    function loadTheme() {
+      const saved = localStorage.getItem("poke_cards_theme");
+      if (saved === "dark") {
+        document.body.classList.add("dark");
+        themeButton.textContent = "ライトモード";
+      }
+    }
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        currentPage = 1;
+        loadCards();
+      }, 250);
+    });
+
+    resetButton.addEventListener("click", () => {
+      searchInput.value = "";
+      selectedVer.clear();
+      selectedExpansion.clear();
+      sortSelect.value = "id.asc";
+      verSearch.value = "";
+      expansionSearch.value = "";
+      currentPage = 1;
+      renderFilterList("ver");
+      renderFilterList("expansion");
+      updateFilterButtonText();
+      loadCards();
+    });
+
+    sortSelect.addEventListener("change", () => {
+      currentPage = 1;
+      loadCards();
+    });
+
+    verButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      verDropdown.classList.toggle("open");
+      expansionDropdown.classList.remove("open");
+    });
+
+    expansionButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      expansionDropdown.classList.toggle("open");
+      verDropdown.classList.remove("open");
+    });
+
+    verDropdown.addEventListener("click", e => e.stopPropagation());
+    expansionDropdown.addEventListener("click", e => e.stopPropagation());
+
+    document.addEventListener("click", () => {
+      verDropdown.classList.remove("open");
+      expansionDropdown.classList.remove("open");
+    });
+
+    verSearch.addEventListener("input", () => renderFilterList("ver"));
+    expansionSearch.addEventListener("input", () => renderFilterList("expansion"));
+
+    function buildDisplayName(card) {
+      return [card.title, card.ver, card.expansion]
+        .filter(v => v !== null && v !== undefined && String(v).trim() !== "")
+        .join("_");
+    }
+
+    function getImageUrl(card) {
+      return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${card.id}.webp`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatUpdatedAt(value) {
+  if (!value) return "更新: -";
+
+  const date = new Date(value);
+
+  return "更新: " +
+    date.getFullYear() + "/" +
+    String(date.getMonth() + 1).padStart(2, "0") + "/" +
+    String(date.getDate()).padStart(2, "0") + " " +
+    String(date.getHours()).padStart(2, "0") + ":" +
+    String(date.getMinutes()).padStart(2, "0");
+    }
+
+    async function fetchAllRowsForFilters() {
+      const pageSize = 1000;
+      let from = 0;
+      let allRows = [];
+
+      while (true) {
+        const to = from + pageSize - 1;
+
+        const { data, error } = await db
+          .from(TABLE_NAME)
+          .select("ver, expansion")
+          .order("id", { ascending: true })
+          .range(from, to);
+
+        if (error) {
+          console.error("フィルター取得エラー:", error);
+          alert("フィルター取得エラー: " + error.message);
+          break;
+        }
+
+        if (!data || data.length === 0) break;
+
+        allRows = allRows.concat(data);
+
+        if (data.length < pageSize) break;
+
+        from += pageSize;
+      }
+
+      return allRows;
+    }
+
+    async function loadFilterOptions() {
+      statusBar.textContent = "フィルター読み込み中...";
+
+      const rows = await fetchAllRowsForFilters();
+
+      const verSet = new Set();
+      const expansionSet = new Set();
+
+      rows.forEach(row => {
+        if (row.ver && String(row.ver).trim() !== "") verSet.add(row.ver);
+        if (row.expansion && String(row.expansion).trim() !== "") expansionSet.add(row.expansion);
+      });
+
+      verOptions = [...verSet].sort((a, b) => String(a).localeCompare(String(b), "ja"));
+      expansionOptions = [...expansionSet].sort((a, b) => String(a).localeCompare(String(b), "ja"));
+
+      renderFilterList("ver");
+      renderFilterList("expansion");
+      updateFilterButtonText();
+    }
+
+    function renderFilterList(type) {
+      const options = type === "ver" ? verOptions : expansionOptions;
+      const selected = type === "ver" ? selectedVer : selectedExpansion;
+      const keyword = type === "ver"
+        ? verSearch.value.trim().toLowerCase()
+        : expansionSearch.value.trim().toLowerCase();
+
+      const list = type === "ver" ? verList : expansionList;
+      list.innerHTML = "";
+
+      options
+        .filter(v => String(v).toLowerCase().includes(keyword))
+        .forEach(value => {
+          const label = document.createElement("label");
+          label.className = "check-item";
+
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.value = value;
+          input.checked = selected.has(value);
+
+          input.addEventListener("change", () => {
+            if (input.checked) {
+              selected.add(value);
+            } else {
+              selected.delete(value);
+            }
+
+            currentPage = 1;
+            updateFilterButtonText();
+            loadCards();
+          });
+
+          const span = document.createElement("span");
+          span.textContent = value;
+
+          label.appendChild(input);
+          label.appendChild(span);
+          list.appendChild(label);
+        });
+    }
+
+    function selectAllFilter(type) {
+      const options = type === "ver" ? verOptions : expansionOptions;
+      const selected = type === "ver" ? selectedVer : selectedExpansion;
+
+      options.forEach(v => selected.add(v));
+
+      currentPage = 1;
+      renderFilterList(type);
+      updateFilterButtonText();
+      loadCards();
+    }
+
+    function clearFilter(type) {
+      const selected = type === "ver" ? selectedVer : selectedExpansion;
+
+      selected.clear();
+
+      currentPage = 1;
+      renderFilterList(type);
+      updateFilterButtonText();
+      loadCards();
+    }
+
+    function updateFilterButtonText() {
+      verButton.textContent = selectedVer.size === 0
+        ? "Ver：すべて ▼"
+        : `Ver：${selectedVer.size}件選択中 ▼`;
+
+      expansionButton.textContent = selectedExpansion.size === 0
+        ? "Expansion：すべて ▼"
+        : `Expansion：${selectedExpansion.size}件選択中 ▼`;
+    }
+
+    function applyFilters(query, keyword) {
+      if (keyword) {
+        const safeKeyword = keyword.replaceAll(",", " ");
+
+        if (/^\d+$/.test(safeKeyword)) {
+          query = query.or(
+            `id.eq.${safeKeyword},poke_no.eq.${safeKeyword},title.ilike.%${safeKeyword}%,ver.ilike.%${safeKeyword}%,expansion.ilike.%${safeKeyword}%`
+          );
+        } else {
+          query = query.or(
+            `title.ilike.%${safeKeyword}%,ver.ilike.%${safeKeyword}%,expansion.ilike.%${safeKeyword}%`
+          );
+        }
+      }
+
+      if (selectedVer.size > 0) {
+        query = query.in("ver", Array.from(selectedVer));
+      }
+
+      if (selectedExpansion.size > 0) {
+        query = query.in("expansion", Array.from(selectedExpansion));
+      }
+
+      return query;
+    }
+
+    async function loadCards() {
+      const keyword = searchInput.value.trim();
+      const [sortColumn, sortDirection] = sortSelect.value.split(".");
+
+      statusBar.textContent = "読み込み中...";
+      grid.innerHTML = "";
+      pagination.innerHTML = "";
+
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let query = db
+        .from(TABLE_NAME)
+        .select("*", { count: "exact" });
+
+      query = applyFilters(query, keyword);
+
+      query = query
+        .order(sortColumn, { ascending: sortDirection === "asc" })
+        .range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        statusBar.textContent = "読み込みエラー";
+        alert("読み込みエラー: " + error.message);
+        return;
+      }
+
+      totalCount = count || 0;
+
+      const start = totalCount === 0 ? 0 : from + 1;
+      const end = Math.min(from + (data ? data.length : 0), totalCount);
+
+      statusBar.textContent = `${totalCount}件中 ${start}〜${end}件表示中`;
+
+      renderCards(data || []);
+      renderPagination();
+    }
+
+    function renderCards(cards) {
+      grid.innerHTML = "";
+
+      cards.forEach(card => {
+        const cardDiv = document.createElement("div");
+        cardDiv.className = "card";
+
+        cardDiv.innerHTML = `
+          <div class="image-wrap">
+            <img
+              src="${getImageUrl(card)}"
+              alt="${escapeHtml(buildDisplayName(card))}"
+              onerror="this.parentElement.innerHTML='<div class=&quot;no-image&quot;>No Image</div>';"
+            >
+          </div>
+
+          <div class="name">${escapeHtml(buildDisplayName(card))}</div>
+
+          ${priceInput(card, "status_a", "状態A")}
+          ${priceInput(card, "status_b", "状態B")}
+          ${priceInput(card, "status_c", "状態C")}
+          ${priceInput(card, "status_d", "状態D")}
+
+<div class="updated-time">
+  ${formatUpdatedAt(card.updated_at)}
+</div>
+
+<div class="saved" id="saved-${card.id}"></div>
+        `;
+
+        grid.appendChild(cardDiv);
+      });
+    }
+
+    function priceInput(card, column, label) {
+      const value = card[column] ?? "";
+
+      return `
+        <div class="price-row">
+          <label>${label}:</label>
+          <input
+            type="number"
+           value="${value}"
+           data-id="${card.id}"
+            data-column="${column}"
+            onfocus="this.select()"
+           onclick="this.select()"
+           onchange="updatePrice(this.dataset.id, this.dataset.column, this.value)"
+>
+          <span class="yen">円</span>
+        </div>
+      `;
+    }
+
+    function renderPagination() {
+      pagination.innerHTML = "";
+
+      const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+      if (totalPages <= 1) return;
+
+      const prevButton = document.createElement("button");
+      prevButton.textContent = "前へ";
+      prevButton.disabled = currentPage === 1;
+      prevButton.onclick = () => {
+        if (currentPage > 1) {
+          currentPage--;
+          loadCards();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      };
+      pagination.appendChild(prevButton);
+
+      const pageNumbers = getPageNumbers(currentPage, totalPages);
+
+      pageNumbers.forEach(page => {
+        if (page === "...") {
+          const span = document.createElement("span");
+          span.textContent = "...";
+          span.style.padding = "0 6px";
+          pagination.appendChild(span);
+          return;
+        }
+
+        const button = document.createElement("button");
+        button.textContent = page;
+        button.className = page === currentPage ? "active" : "";
+        button.onclick = () => {
+          currentPage = page;
+          loadCards();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+
+        pagination.appendChild(button);
+      });
+
+      const nextButton = document.createElement("button");
+      nextButton.textContent = "次へ";
+      nextButton.disabled = currentPage === totalPages;
+      nextButton.onclick = () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          loadCards();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      };
+      pagination.appendChild(nextButton);
+
+      const info = document.createElement("div");
+      info.className = "page-info";
+      info.textContent = `${currentPage} / ${totalPages} ページ`;
+      pagination.appendChild(info);
+    }
+
+    function getPageNumbers(current, total) {
+      const pages = [];
+
+      if (total <= 10) {
+        for (let i = 1; i <= total; i++) pages.push(i);
+        return pages;
+      }
+
+      pages.push(1);
+
+      if (current > 4) pages.push("...");
+
+      const start = Math.max(2, current - 2);
+      const end = Math.min(total - 1, current + 2);
+
+      for (let i = start; i <= end; i++) pages.push(i);
+
+      if (current < total - 3) pages.push("...");
+
+      pages.push(total);
+
+      return pages;
+    }
+
+    async function updatePrice(id, column, value) {
+      const newValue = value === "" ? null : Number(value);
+      const saved = document.getElementById(`saved-${id}`);
+
+      saved.style.color = "#555";
+      saved.textContent = "保存中...";
+
+      const { error } = await db
+        .from(TABLE_NAME)
+        .update({
+          [column]: newValue,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", id);
+
+      if (error) {
+        saved.style.color = "red";
+        saved.textContent = "保存失敗";
+        console.error(error);
+        alert("保存失敗: " + error.message);
+        return;
+      }
+
+      saved.style.color = "green";
+      saved.textContent = "保存しました";
+
+      setTimeout(() => {
+        saved.textContent = "";
+      }, 1200);
+    }
+
+    async function init() {
+      loadTheme();
+      await loadFilterOptions();
+      await loadCards();
+    }
+
+    init();
+  </script>
+</body>
+</html>
