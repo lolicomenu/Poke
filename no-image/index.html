@@ -214,11 +214,49 @@
       padding: 0 4px;
       color: #9fb4cc;
     }
+
+    /* ===== Login ===== */
+    .login-wrap{max-width:520px;margin:80px auto;padding:24px}
+    .login-card{background:var(--panel-bg, var(--card-bg, #111827));border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.3);padding:22px;color:var(--text, #e5e7eb)}
+    .login-card h1{font-size:22px;margin:0 0 8px;color:var(--text, #e5e7eb)}
+    .login-card p{color:var(--subtext, #94a3b8);font-size:13px;margin:0 0 18px}
+    .login-card label{display:block;color:var(--subtext, #b9c6d8);font-size:13px;margin:12px 0 6px}
+    .login-card input{width:100%;box-sizing:border-box;background:var(--input-bg, #0f1520);color:var(--text, #e5e7eb);border:1px solid var(--border, #263243);border-radius:10px;padding:11px 12px;font-size:16px;outline:none}
+    .login-actions{display:flex;gap:10px;align-items:center;margin-top:16px}
+    .login-error{color:#ff7b7b;font-size:13px;margin-top:12px;min-height:18px}
+    .topbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:0 0 12px;flex-wrap:wrap}
+    .user-pill{color:#cfe3ff;font-size:13px;border:1px solid var(--border, #2b3c52);border-radius:999px;padding:6px 10px;background:var(--input-bg, #0f1520)}
+
   </style>
 </head>
 
 <body>
-  <h2>Pokémon Card DB リアルタイム検索</h2>
+  <div class="login-wrap" id="loginWrap">
+    <div class="login-card">
+      <h1>Pokemon DB 管理ログイン</h1>
+      <p>編集をするにはログインしてください。</p>
+
+      <label for="loginEmail">メールアドレス</label>
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="admin@example.com" />
+
+      <label for="loginPassword">パスワード</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" />
+
+      <div class="login-actions">
+        <button id="loginBtn" type="button">ログイン</button>
+      </div>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+
+  <div id="appWrap" style="display:none;">
+  <div class="topbar">
+    <h2>Pokémon Card DB リアルタイム検索</h2>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span class="user-pill" id="userEmail">ログイン中</span>
+      <button id="logoutBtn" type="button">ログアウト</button>
+    </div>
+  </div>
 
   <div class="panel">
     <div class="controls">
@@ -289,6 +327,72 @@
     const SUPABASE_ANON_KEY = "sb_publishable_UokmnaCrSi9SvKZpRDyq4A_3E7X-lga";
 
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let appStarted = false;
+
+    async function initAuth() {
+      const { data } = await client.auth.getSession();
+      if (data?.session) {
+        showApp(data.session.user);
+        return;
+      }
+      showLogin();
+    }
+
+    function showLogin() {
+      document.getElementById("loginWrap").style.display = "block";
+      document.getElementById("appWrap").style.display = "none";
+    }
+
+    function showApp(user) {
+      document.getElementById("loginWrap").style.display = "none";
+      document.getElementById("appWrap").style.display = "block";
+      const userEmail = document.getElementById("userEmail");
+      if (userEmail) userEmail.textContent = user?.email || "ログイン中";
+      if (!appStarted) {
+        appStarted = true;
+        init();
+      }
+    }
+
+    async function doLogin() {
+      const email = (document.getElementById("loginEmail")?.value || "").trim();
+      const password = document.getElementById("loginPassword")?.value || "";
+      const errorEl = document.getElementById("loginError");
+      const btn = document.getElementById("loginBtn");
+
+      if (!email || !password) {
+        if (errorEl) errorEl.textContent = "メールアドレスとパスワードを入力してください。";
+        return;
+      }
+
+      if (errorEl) errorEl.textContent = "";
+      if (btn) { btn.disabled = true; btn.textContent = "ログイン中…"; }
+
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+
+      if (btn) { btn.disabled = false; btn.textContent = "ログイン"; }
+
+      if (error) {
+        console.error(error);
+        if (errorEl) errorEl.textContent = "ログインに失敗しました。メールアドレス・パスワードを確認してください。";
+        return;
+      }
+
+      showApp(data.user);
+    }
+
+    async function doLogout() {
+      await client.auth.signOut();
+      appStarted = false;
+      tableBody.innerHTML = "";
+      showLogin();
+    }
+
+    document.getElementById("loginBtn")?.addEventListener("click", doLogin);
+    document.getElementById("loginPassword")?.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+    document.getElementById("loginEmail")?.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+    document.getElementById("logoutBtn")?.addEventListener("click", doLogout);
     const tableName = "poke_cards";
 
     const searchInput = document.getElementById("searchInput");
@@ -776,7 +880,8 @@
       await loadData();
     }
 
-    init();
+    initAuth();
   </script>
+  </div>
 </body>
 </html>
