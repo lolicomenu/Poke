@@ -410,6 +410,7 @@
 
     let verOptions = [];
     let expansionOptions = [];
+    let allFilterRows = [];
 
     let selectedVers = new Set();
     let selectedExpansions = new Set();
@@ -446,12 +447,34 @@
         from += chunkSize;
       }
 
+      allFilterRows = allData;
+      refreshLinkedFilters();
+    }
+
+    function refreshLinkedFilters() {
+      let verRows = allFilterRows;
+      let expansionRows = allFilterRows;
+
+      // Expansion 側で選択されているものに紐づく Ver だけ表示
+      if (selectedExpansions.size > 0) {
+        verRows = allFilterRows.filter(row => selectedExpansions.has(row.expansion));
+      }
+
+      // Ver 側で選択されているものに紐づく Expansion だけ表示
+      if (selectedVers.size > 0) {
+        expansionRows = allFilterRows.filter(row => selectedVers.has(row.ver));
+      }
+
       verOptions = [...new Set(
-        allData.map(x => String(x.ver ?? "").trim()).filter(Boolean)
+        verRows
+          .map(row => String(row.ver ?? "").trim())
+          .filter(Boolean)
       )].sort((a, b) => a.localeCompare(b, "ja"));
 
       expansionOptions = [...new Set(
-        allData.map(x => String(x.expansion ?? "").trim()).filter(Boolean)
+        expansionRows
+          .map(row => String(row.expansion ?? "").trim())
+          .filter(Boolean)
       )].sort((a, b) => a.localeCompare(b, "ja"));
 
       renderFilterBox("ver");
@@ -749,7 +772,7 @@
         selectedSet.delete(value);
       }
 
-      renderFilterBox(type);
+      refreshLinkedFilters();
       resetPageAndLoad();
     }
 
@@ -760,7 +783,7 @@
         selectedExpansions = new Set(expansionOptions);
       }
 
-      renderFilterBox(type);
+      refreshLinkedFilters();
       resetPageAndLoad();
     }
 
@@ -771,15 +794,14 @@
         selectedExpansions.clear();
       }
 
-      renderFilterBox(type);
+      refreshLinkedFilters();
       resetPageAndLoad();
     }
 
     function clearAllFilters() {
       selectedVers.clear();
       selectedExpansions.clear();
-      renderFilterBox("ver");
-      renderFilterBox("expansion");
+      refreshLinkedFilters();
       resetPageAndLoad();
     }
 
