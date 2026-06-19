@@ -541,6 +541,7 @@
 
     let verOptions = [];
     let expansionOptions = [];
+    let allFilterRows = [];
 
     let selectedVer = new Set();
     let selectedExpansion = new Set();
@@ -578,8 +579,7 @@
       verSearch.value = "";
       expansionSearch.value = "";
       currentPage = 1;
-      renderFilterList("ver");
-      renderFilterList("expansion");
+      refreshLinkedFilters();
       updateFilterButtonText();
       loadCards();
     });
@@ -680,6 +680,7 @@
       statusBar.textContent = "フィルター読み込み中...";
 
       const rows = await fetchAllRowsForFilters();
+      allFilterRows = rows;
 
       const verSet = new Set();
       const expansionSet = new Set();
@@ -692,9 +693,38 @@
       verOptions = [...verSet].sort((a, b) => String(a).localeCompare(String(b), "ja"));
       expansionOptions = [...expansionSet].sort((a, b) => String(a).localeCompare(String(b), "ja"));
 
+      refreshLinkedFilters();
+      updateFilterButtonText();
+    }
+
+    function refreshLinkedFilters() {
+      let verRows = allFilterRows;
+      let expansionRows = allFilterRows;
+
+      // Expansion 側で選択されているものに紐づく Ver だけ表示
+      if (selectedExpansion.size > 0) {
+        verRows = allFilterRows.filter(row => selectedExpansion.has(row.expansion));
+      }
+
+      // Ver 側で選択されているものに紐づく Expansion だけ表示
+      if (selectedVer.size > 0) {
+        expansionRows = allFilterRows.filter(row => selectedVer.has(row.ver));
+      }
+
+      verOptions = [...new Set(
+        verRows
+          .map(row => row.ver)
+          .filter(value => value && String(value).trim() !== "")
+      )].sort((a, b) => String(a).localeCompare(String(b), "ja"));
+
+      expansionOptions = [...new Set(
+        expansionRows
+          .map(row => row.expansion)
+          .filter(value => value && String(value).trim() !== "")
+      )].sort((a, b) => String(a).localeCompare(String(b), "ja"));
+
       renderFilterList("ver");
       renderFilterList("expansion");
-      updateFilterButtonText();
     }
 
     function renderFilterList(type) {
@@ -726,6 +756,7 @@
             }
 
             currentPage = 1;
+            refreshLinkedFilters();
             updateFilterButtonText();
             loadCards();
           });
@@ -746,7 +777,7 @@
       options.forEach(v => selected.add(v));
 
       currentPage = 1;
-      renderFilterList(type);
+      refreshLinkedFilters();
       updateFilterButtonText();
       loadCards();
     }
@@ -757,7 +788,7 @@
       selected.clear();
 
       currentPage = 1;
-      renderFilterList(type);
+      refreshLinkedFilters();
       updateFilterButtonText();
       loadCards();
     }
