@@ -143,6 +143,10 @@
       color: #fff;
     }
 
+    #typeFilterBox {
+      width: 320px;
+    }
+
     #expansionFilterBox {
       width: 420px;
     }
@@ -263,13 +267,15 @@
       <input
         id="searchInput"
         type="text"
-        placeholder="商品名 / カナ / Poke_No / Expansion を入力..."
+        placeholder="商品名 / Type / Ver / Expansion / Poke_No を入力..."
       />
 
       <select id="sortSelect">
         <option value="updated_desc">更新日時 新しい順</option>
         <option value="poke_no_asc">Poke_No 昇順</option>
         <option value="id_asc">ID 昇順</option>
+        <option value="type_asc">Type 昇順</option>
+        <option value="type_desc">Type 降順</option>
       </select>
 
       <select id="pageSizeSelect">
@@ -283,7 +289,7 @@
     </div>
 
     <div class="note">
-      ※ Ver / Expansion の見出しをクリックすると複数選択フィルターできます。状態A〜Dはクリックで全選択、自動保存。
+      ※ Type / Ver / Expansion の見出しをクリックすると複数選択フィルターできます。状態A〜Dはクリックで全選択、自動保存。
     </div>
 
     <table>
@@ -292,6 +298,11 @@
           <th>ID</th>
           <th>Poke_No</th>
           <th>Title</th>
+
+          <th class="filter-th" id="typeHeader" onclick="toggleFilterBox(event, 'type')">
+            Type ▼
+            <div class="filter-box" id="typeFilterBox" onclick="event.stopPropagation()"></div>
+          </th>
 
           <th class="filter-th" id="verHeader" onclick="toggleFilterBox(event, 'ver')">
             Ver ▼
@@ -408,10 +419,11 @@
     let searchTimer = null;
     const saveTimers = {};
 
+    let typeOptions = [];
     let verOptions = [];
     let expansionOptions = [];
-    let allFilterRows = [];
 
+    let selectedTypes = new Set();
     let selectedVers = new Set();
     let selectedExpansions = new Set();
 
@@ -426,7 +438,7 @@
       while (true) {
         const { data, error } = await client
           .from(tableName)
-          .select("ver, expansion")
+          .select("type, ver, expansion")
           .range(from, from + chunkSize - 1);
 
         if (error) {
@@ -447,36 +459,19 @@
         from += chunkSize;
       }
 
-      allFilterRows = allData;
-      refreshLinkedFilters();
-    }
-
-    function refreshLinkedFilters() {
-      let verRows = allFilterRows;
-      let expansionRows = allFilterRows;
-
-      // Expansion 側で選択されているものに紐づく Ver だけ表示
-      if (selectedExpansions.size > 0) {
-        verRows = allFilterRows.filter(row => selectedExpansions.has(row.expansion));
-      }
-
-      // Ver 側で選択されているものに紐づく Expansion だけ表示
-      if (selectedVers.size > 0) {
-        expansionRows = allFilterRows.filter(row => selectedVers.has(row.ver));
-      }
+      typeOptions = [...new Set(
+        allData.map(x => String(x.type ?? "").trim()).filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, "ja"));
 
       verOptions = [...new Set(
-        verRows
-          .map(row => String(row.ver ?? "").trim())
-          .filter(Boolean)
+        allData.map(x => String(x.ver ?? "").trim()).filter(Boolean)
       )].sort((a, b) => a.localeCompare(b, "ja"));
 
       expansionOptions = [...new Set(
-        expansionRows
-          .map(row => String(row.expansion ?? "").trim())
-          .filter(Boolean)
+        allData.map(x => String(x.expansion ?? "").trim()).filter(Boolean)
       )].sort((a, b) => a.localeCompare(b, "ja"));
 
+      renderFilterBox("type");
       renderFilterBox("ver");
       renderFilterBox("expansion");
     }
@@ -498,12 +493,17 @@
         query = query.or(
           [
             `title.ilike.%${keyword}%`,
+            `type.ilike.%${keyword}%`,
             `ver.ilike.%${keyword}%`,
             `expansion.ilike.%${keyword}%`,
             `poke_no.eq.${Number(keyword) || -1}`,
             `id.eq.${Number(keyword) || -1}`
           ].join(",")
         );
+      }
+
+      if (selectedTypes.size > 0) {
+        query = query.in("type", Array.from(selectedTypes));
       }
 
       if (selectedVers.size > 0) {
@@ -520,6 +520,10 @@
         query = query.order("poke_no", { ascending: true });
       } else if (sortValue === "id_asc") {
         query = query.order("id", { ascending: true });
+      } else if (sortValue === "type_asc") {
+        query = query.order("type", { ascending: true });
+      } else if (sortValue === "type_desc") {
+        query = query.order("type", { ascending: false });
       }
 
       const { data, error, count } = await query;
@@ -543,7 +547,7 @@
       if (!cards || cards.length === 0) {
         tableBody.innerHTML = `
           <tr>
-            <td colspan="11" style="text-align:center; color:#9fb4cc; padding:30px;">
+            <td colspan="12" style="text-align:center; color:#9fb4cc; padding:30px;">
               表示できるデータがありません
             </td>
           </tr>
@@ -558,6 +562,7 @@
           <td>${card.id ?? ""}</td>
           <td>${card.poke_no ?? ""}</td>
           <td class="title-cell">${escapeHtml(card.title ?? "")}</td>
+          <td>${escapeHtml(card.type ?? "")}</td>
           <td>${escapeHtml(card.ver ?? "")}</td>
           <td>${escapeHtml(card.expansion ?? "")}</td>
 
@@ -702,9 +707,9 @@
     }
 
     function renderFilterBox(type) {
-      const box = document.getElementById(type === "ver" ? "verFilterBox" : "expansionFilterBox");
-      const options = type === "ver" ? verOptions : expansionOptions;
-      const selectedSet = type === "ver" ? selectedVers : selectedExpansions;
+      const box = document.getElementById(type === "type" ? "typeFilterBox" : type === "ver" ? "verFilterBox" : "expansionFilterBox");
+      const options = type === "type" ? typeOptions : type === "ver" ? verOptions : expansionOptions;
+      const selectedSet = type === "type" ? selectedTypes : type === "ver" ? selectedVers : selectedExpansions;
 
       box.innerHTML = `
         <div class="filter-actions">
@@ -751,20 +756,27 @@
     function toggleFilterBox(event, type) {
       event.stopPropagation();
 
+      const typeBox = document.getElementById("typeFilterBox");
       const verBox = document.getElementById("verFilterBox");
       const expansionBox = document.getElementById("expansionFilterBox");
 
-      if (type === "ver") {
+      if (type === "type") {
+        verBox.classList.remove("show");
+        expansionBox.classList.remove("show");
+        typeBox.classList.toggle("show");
+      } else if (type === "ver") {
+        typeBox.classList.remove("show");
         expansionBox.classList.remove("show");
         verBox.classList.toggle("show");
       } else {
+        typeBox.classList.remove("show");
         verBox.classList.remove("show");
         expansionBox.classList.toggle("show");
       }
     }
 
     function toggleFilterValue(type, value, checked) {
-      const selectedSet = type === "ver" ? selectedVers : selectedExpansions;
+      const selectedSet = type === "type" ? selectedTypes : type === "ver" ? selectedVers : selectedExpansions;
 
       if (checked) {
         selectedSet.add(value);
@@ -772,43 +784,51 @@
         selectedSet.delete(value);
       }
 
-      refreshLinkedFilters();
+      renderFilterBox(type);
       resetPageAndLoad();
     }
 
     function selectAllFilter(type) {
-      if (type === "ver") {
+      if (type === "type") {
+        selectedTypes = new Set(typeOptions);
+      } else if (type === "ver") {
         selectedVers = new Set(verOptions);
       } else {
         selectedExpansions = new Set(expansionOptions);
       }
 
-      refreshLinkedFilters();
+      renderFilterBox(type);
       resetPageAndLoad();
     }
 
     function clearFilter(type) {
-      if (type === "ver") {
+      if (type === "type") {
+        selectedTypes.clear();
+      } else if (type === "ver") {
         selectedVers.clear();
       } else {
         selectedExpansions.clear();
       }
 
-      refreshLinkedFilters();
+      renderFilterBox(type);
       resetPageAndLoad();
     }
 
     function clearAllFilters() {
       selectedVers.clear();
       selectedExpansions.clear();
-      refreshLinkedFilters();
+      renderFilterBox("type");
+      renderFilterBox("ver");
+      renderFilterBox("expansion");
       resetPageAndLoad();
     }
 
     function updateFilterHeaderStyle() {
+      const typeHeader = document.getElementById("typeHeader");
       const verHeader = document.getElementById("verHeader");
       const expansionHeader = document.getElementById("expansionHeader");
 
+      typeHeader.classList.toggle("active", selectedTypes.size > 0);
       verHeader.classList.toggle("active", selectedVers.size > 0);
       expansionHeader.classList.toggle("active", selectedExpansions.size > 0);
     }
@@ -893,6 +913,7 @@
     pageSizeSelect.addEventListener("change", resetPageAndLoad);
 
     document.addEventListener("click", () => {
+      document.getElementById("typeFilterBox").classList.remove("show");
       document.getElementById("verFilterBox").classList.remove("show");
       document.getElementById("expansionFilterBox").classList.remove("show");
     });
